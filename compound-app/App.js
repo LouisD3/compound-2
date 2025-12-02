@@ -67,17 +67,36 @@ export default function App() {
         type: "video/mp4", // tu pourras adapter ensuite
       });
 
-      const response = await fetch("http://192.168.1.245:3000/upload", {
+      console.log("Tentative d'upload vers http://192.168.68.54:3000/upload");
+      console.log("URI vidéo:", video.uri);
+
+      const response = await fetch("http://192.168.68.54:3000/upload", {
         method: "POST",
         body: formData,
         // ne PAS mettre de Content-Type ici, fetch le gère tout seul
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Erreur serveur: ${response.status} - ${errorText}`);
+      }
+
       const json = await response.json();
       setServerResponse(json);
     } catch (err) {
-      console.error(err);
-      alert("Erreur lors de l'upload");
+      console.error("Erreur complète:", err);
+      console.error("Message:", err.message);
+      console.error("Stack:", err.stack);
+      
+      let errorMessage = "Erreur lors de l'upload";
+      if (err.message) {
+        errorMessage += `\n${err.message}`;
+      }
+      if (err.message && err.message.includes("Network request failed")) {
+        errorMessage += "\n\nVérifie que:\n- Le serveur backend est démarré\n- L'IP 192.168.68.54 est correcte\n- L'appareil et le serveur sont sur le même réseau";
+      }
+      
+      alert(errorMessage);
     } finally {
       setUploading(false);
     }

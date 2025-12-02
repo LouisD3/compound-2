@@ -1,161 +1,286 @@
-require("dotenv").config();
-const express = require("express");
-const cors = require("cors");
-const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
-const OpenAI = require("openai");
-const { exec } = require("child_process");
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const { exec } = require('child_process');
 
 const app = express();
 const port = 3000;
 
-// ⚠️ Mets ton IP locale ici (la même que dans l'app React Native)
-const SERVER_IP = "192.168.1.245"; // <--- à changer
+// ⚠️ Mets ton IP locale ici (la même que dans ton App.js)
+const SERVER_IP = '192.168.68.54';
 
-// Client OpenAI
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// Autoriser les requêtes depuis ton app mobile
 app.use(cors());
 
-// Multer : dossier temporaire
-const upload = multer({
-  dest: path.join(__dirname, "uploads"),
+// Middleware pour logger les requêtes
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - IP: ${req.ip}`);
+  next();
 });
 
-// Servir les vidéos "traitées"
-app.use("/processed", express.static(path.join(__dirname, "processed")));
+const upload = multer({
+  dest: path.join(__dirname, 'uploads'),
+});
 
-// Helper : fonction de transcription Whisper
-async function transcribeWithWhisper(filePath) {
-  console.log("Transcription avec Whisper en cours...");
+// Servir les vidéos traitées
+app.use('/processed', express.static(path.join(__dirname, 'processed')));
 
-  const fileStream = fs.createReadStream(filePath);
+// Route de test pour vérifier la connexion
+app.get('/test', (req, res) => {
+  res.json({ message: 'Serveur backend opérationnel !', timestamp: new Date().toISOString() });
+});
 
-  const response = await openai.audio.transcriptions.create({
-    file: fileStream,
-    model: "whisper-1", // modèle speech-to-text
-    response_format: "json", // tu peux mettre 'verbose_json' plus tard
-    // language: 'fr',           // optionnel : laisser Whisper détecter
-  });
+// ---------- HELPERS FFmpeg ----------
 
-  console.log("Transcription terminée");
-  // Pour response_format: 'json', c'est généralement response.text
-  return response.text || response;
-}
-
-function processVideoWithFFmpeg(inputPath, outputPath) {
+// 1) Extraire l'audio en .wav pour analyse des silences
+function extractAudio(inputVideoPath) {
   return new Promise((resolve, reject) => {
-    const cmd = `ffmpeg -y -i "${inputPath}" \
--af "silenceremove=start_periods=1:start_duration=0.1:start_threshold=-25dB:stop_periods=1:stop_duration=0.1:stop_threshold=-25dB" \
--c:v libx264 -preset veryfast -crf 23 \
--c:a aac -b:a 128k \
--movflags +faststart "${outputPath}"`;
-
-    console.log("Commande FFmpeg :", cmd);
-
-    exec(cmd, (error, stdout, stderr) => {
-      if (error) {
-        console.error("Erreur FFmpeg :", error);
-        console.error("stderr :", stderr);
-        return reject(error);
-      }
-
-      console.log("FFmpeg terminé avec succès");
-      resolve();
-    });
-  });
-}
-
-function extractAudioForWhisper(inputVideoPath) {
-  return new Promise((resolve, reject) => {
-    const audioDir = path.join(__dirname, "audio");
+    const audioDir = path.join(__dirname, 'audio');
     if (!fs.existsSync(audioDir)) {
       fs.mkdirSync(audioDir);
     }
 
-    const baseName = path.basename(
-      inputVideoPath,
-      path.extname(inputVideoPath)
-    );
-    const audioPath = path.join(audioDir, baseName + ".wav");
+    const baseName = path.basename(inputVideoPath, path.extname(inputVideoPath));
+    const audioPath = path.join(audioDir, baseName + '.wav');
 
-    // On sort un .wav 16 kHz mono (format ultra standard)
-    const cmd = `ffmpeg -y -i "${inputVideoPath}" -vn -acodec pcm_s16le -ar 16000 -ac 1 "${audioPath}"`;
-
-    console.log("Commande FFmpeg audio :", cmd);
+    // Meilleure qualité audio pour une détection plus précise
+    const cmd = `ffmpeg -y -i "${inputVideoPath}" -vn -acodec pcm_s16le -ar 44100 -ac 1 -af "highpass=f=200,lowpass=f=3000" "${audioPath}"`;
+    console.log('Commande FFmpeg audio :', cmd);
 
     exec(cmd, (error, stdout, stderr) => {
       if (error) {
-        console.error("Erreur FFmpeg audio :", error);
-        console.error("stderr :", stderr);
+        console.error('Erreur FFmpeg audio :', error);
+        console.error('stderr :', stderr);
         return reject(error);
       }
-
-      console.log("Extraction audio terminée :", audioPath);
+      console.log('Extraction audio terminée :', audioPath);
       resolve(audioPath);
     });
   });
 }
 
-// Route pour recevoir la vidéo
-app.post("/upload", upload.single("file"), async (req, res) => {
-  console.log("Fichier reçu :", req.file);
+// 2) Récupérer la durée de l'audio (en secondes)
+function getMediaDuration(filePath) {
+  return new Promise((resolve, reject) => {
+    const cmd = `ffprobe -v error -show_entries format=duration -of default=nokey=1:noprint_wrappers=1 "${filePath}"`;
+
+    exec(cmd, (error, stdout, stderr) => {
+      if (error) {
+        console.error('Erreur ffprobe :', error);
+        return reject(error);
+      }
+      const duration = parseFloat(stdout.trim());
+      console.log('Durée media :', duration, 's');
+      resolve(duration);
+    });
+  });
+}
+
+// 3) Détecter tous les silences via silencedetect
+function detectSilences(audioPath) {
+  return new Promise((resolve, reject) => {
+    const cmd = `ffmpeg -i "${audioPath}" -af silencedetect=noise=-25dB:d=0.8 -f null -`;
+
+    console.log('Commande FFmpeg silencedetect :', cmd);
+
+    exec(cmd, (error, stdout, stderr) => {
+      const lines = stderr.split('\n');
+      const silences = [];
+      let currentStart = null;
+
+      for (const line of lines) {
+        const startMatch = line.match(/silence_start:\s*([\d\.]+)/);
+        if (startMatch) {
+          currentStart = parseFloat(startMatch[1]);
+        }
+        const endMatch = line.match(/silence_end:\s*([\d\.]+)/);
+        if (endMatch && currentStart !== null) {
+          const end = parseFloat(endMatch[1]);
+          silences.push({ start: currentStart, end });
+          currentStart = null;
+        }
+      }
+
+      console.log('Silences détectés :', silences);
+      resolve(silences);
+    });
+  });
+}
+
+// 4) Transformer les silences en segments non silencieux
+function computeNonSilentSegments(silences, totalDuration) {
+  const segments = [];
+  let cursor = 0;
+
+  // On part de TOUS les silences détectés
+  for (const { start, end } of silences) {
+    if (start > cursor) {
+      segments.push({ start: cursor, end: start });
+    }
+    cursor = end;
+  }
+
+  // Dernier segment après le dernier silence
+  if (cursor < totalDuration) {
+    segments.push({ start: cursor, end: totalDuration });
+  }
+
+  // On ajoute un petit padding pour ne pas couper trop sec
+  const PRE_PAD = 0.15;   // 150 ms avant
+  const POST_PAD = 0.20;  // 200 ms après
+  const MIN_SEGMENT = 0.2; // on évite juste les segments ridicules
+
+  const padded = segments
+    .map(seg => {
+      let start = seg.start - PRE_PAD;
+      let end = seg.end + POST_PAD;
+
+      if (start < 0) start = 0;
+      if (end > totalDuration) end = totalDuration;
+
+      return { start, end };
+    })
+    .filter(seg => seg.end - seg.start >= MIN_SEGMENT);
+
+  console.log('Segments non silencieux (padded) :', padded);
+  return padded;
+}
+
+
+
+// 5) Extraire chaque segment vidéo + concaténer
+function cutAllNonSilentSegmentsAndConcat(inputVideoPath, outputVideoPath, segments) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const tempDir = path.join(__dirname, 'temp_segments');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir);
+      }
+
+      const segmentFiles = [];
+
+      // Extraire chaque segment
+      for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i];
+        const segPath = path.join(tempDir, `segment_${i}.mp4`);
+        segmentFiles.push(segPath);
+
+        const cmd = `ffmpeg -y -ss ${seg.start} -to ${seg.end} -i "${inputVideoPath}" -c:v copy -c:a copy "${segPath}"`;
+        console.log('Commande FFmpeg segment :', cmd);
+
+        await new Promise((res, rej) => {
+          exec(cmd, (error, stdout, stderr) => {
+            if (error) {
+              console.error('Erreur FFmpeg segment :', error);
+              console.error('stderr :', stderr);
+              return rej(error);
+            }
+            res();
+          });
+        });
+      }
+
+      // Fichier concat
+      const concatFilePath = path.join(tempDir, 'concat.txt');
+      const concatContent = segmentFiles
+        .map(p => `file '${p.replace(/'/g, "'\\''")}'`)
+        .join('\n');
+      fs.writeFileSync(concatFilePath, concatContent);
+
+      // Concaténation
+      const cmdConcat = `ffmpeg -y -f concat -safe 0 -i "${concatFilePath}" -c:v copy -c:a copy -movflags +faststart "${outputVideoPath}"`;
+      console.log('Commande FFmpeg concat :', cmdConcat);
+
+      exec(cmdConcat, (error, stdout, stderr) => {
+        if (error) {
+          console.error('Erreur FFmpeg concat :', error);
+          console.error('stderr :', stderr);
+          return reject(error);
+        }
+
+        console.log('Concaténation terminée avec succès');
+        resolve();
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+// ---------- ROUTE /upload ----------
+
+app.post('/upload', upload.single('file'), async (req, res) => {
+  console.log('Fichier reçu :', req.file);
 
   if (!req.file) {
-    return res.status(400).json({ error: "Aucun fichier reçu" });
+    return res.status(400).json({ error: 'Aucun fichier reçu' });
   }
 
   const originalPath = req.file.path;
 
-  // === 1. Ajouter une extension au fichier ===
-  let ext = path.extname(req.file.originalname);
-  if (!ext) {
-    ext = ".mp4"; // fallback
-  }
-
-  const fileWithExtPath = path.join(
-    path.dirname(originalPath),
-    req.file.filename + ext
-  );
-
-  fs.renameSync(originalPath, fileWithExtPath);
-
-  // === 2. Préparer le dossier processed ===
-  const processedDir = path.join(__dirname, "processed");
-  if (!fs.existsSync(processedDir)) {
-    fs.mkdirSync(processedDir);
-  }
-
-  const processedFileName = req.file.filename + ext;
-  const processedPath = path.join(processedDir, processedFileName);
-
   try {
-    // 3. Traitement vidéo avec FFmpeg (silences début/fin)
-    await processVideoWithFFmpeg(fileWithExtPath, processedPath);
+    // 1) Extension correcte
+    let ext = path.extname(req.file.originalname);
+    if (!ext) {
+      ext = '.mp4';
+    }
 
-    // 4. Extraction audio pour Whisper **à partir de la vidéo déjà coupée**
-    const audioPathForWhisper = await extractAudioForWhisper(processedPath);
+    const fileWithExtPath = path.join(
+      path.dirname(originalPath),
+      req.file.filename + ext
+    );
+    fs.renameSync(originalPath, fileWithExtPath);
 
-    // 5. Transcription
-    const transcriptionText = await transcribeWithWhisper(audioPathForWhisper);
+    // 2) Dossier processed
+    const processedDir = path.join(__dirname, 'processed');
+    if (!fs.existsSync(processedDir)) {
+      fs.mkdirSync(processedDir);
+    }
+
+    const processedFileName = req.file.filename + ext;
+    const processedPath = path.join(processedDir, processedFileName);
+
+    // 3) Extraire l'audio
+    const audioPath = await extractAudio(fileWithExtPath);
+
+    // 4) Durée totale
+    const totalDuration = await getMediaDuration(audioPath);
+
+    // 5) Silences
+    const silences = await detectSilences(audioPath);
+
+    // 6) Segments non silencieux
+    const nonSilentSegments = computeNonSilentSegments(silences, totalDuration);
+
+    if (!nonSilentSegments.length) {
+      console.warn("Aucun segment non silencieux détecté, on garde la vidéo telle quelle.");
+      fs.copyFileSync(fileWithExtPath, processedPath);
+    } else {
+      // 7) Couper + concat
+      await cutAllNonSilentSegmentsAndConcat(fileWithExtPath, processedPath, nonSilentSegments);
+    }
 
     const processedVideoUrl = `http://${SERVER_IP}:${port}/processed/${processedFileName}`;
 
     res.json({
-      message: "Vidéo traitée (FFmpeg) + transcription générée",
+      message: 'Vidéo nettoyée : silences début/milieu/fin supprimés',
       processedVideoUrl,
-      transcription: transcriptionText,
+      nonSilentSegments,
     });
   } catch (err) {
-    console.error("Erreur traitement :", err);
-    res.status(500).json({ error: "Erreur lors du traitement de la vidéo" });
+    console.error('Erreur traitement :', err);
+    res.status(500).json({ error: 'Erreur lors du traitement de la vidéo' });
   }
 });
 
-app.listen(port, () => {
+// ---------- LANCEMENT ----------
+
+/*app.listen(port, () => {
   console.log(`Serveur backend lancé sur http://localhost:${port}`);
+});*/
+
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Serveur backend lancé sur http://${SERVER_IP}:${port}`);
 });
