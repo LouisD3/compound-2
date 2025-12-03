@@ -1,176 +1,182 @@
-import { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  Button,
-  ActivityIndicator,
-  ScrollView,
-  StyleSheet,
-  Platform,
-} from "react-native";
-import * as ImagePicker from "expo-image-picker";
-import { Video, Audio } from "expo-av";
-import { TouchableOpacity } from "react-native";
+import React, { useState, useRef } from 'react';
+import { View, Text, Button, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Video } from 'expo-av';
+
+const SERVER_URL = 'http://192.168.68.54:3000'; // adapte si besoin
 
 export default function App() {
-  const [video, setVideo] = useState(null);
+  const [videoLocal, setVideoLocal] = useState(null);          // vidéo choisie sur le tel
+  const [processedVideoUrl, setProcessedVideoUrl] = useState(null); // vidéo montée (backend)
+  const [subtitles, setSubtitles] = useState([]);              // segments Whisper
+  const [currentSubtitle, setCurrentSubtitle] = useState('');  // texte affiché
   const [uploading, setUploading] = useState(false);
-  const [serverResponse, setServerResponse] = useState(null);
 
-  useEffect(() => {
-    if (Platform.OS === "ios") {
-      Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-      })
-        .then(() => console.log("Audio mode set ✅"))
-        .catch((e) => console.log("Erreur setAudioModeAsync", e));
-    }
-  }, []);
+  const videoRef = useRef(null);
 
-  async function pickVideo() {
-    // Demander la permission d'accéder à la galerie
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      alert("Permission refusée pour accéder à la galerie");
-      return;
-    }
-
-    // Ouvrir la galerie en mode vidéo
+  const pickVideo = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+      allowsEditing: false,
       quality: 1,
     });
 
     if (!result.canceled) {
-      // Sur la nouvelle API, les fichiers sont dans result.assets
-      const selected = result.assets[0];
-      setVideo(selected);
-      setServerResponse(null);
+      setVideoLocal(result.assets[0]);
+      setProcessedVideoUrl(null);
+      setSubtitles([]);
+      setCurrentSubtitle('');
     }
-  }
+  };
 
-  async function uploadVideo() {
-    if (!video) {
-      alert("Choisis une vidéo avant");
+  const uploadVideo = async () => {
+    if (!videoLocal) {
+      Alert.alert('Aucune vidéo', 'Choisis une vidéo d’abord.');
       return;
     }
 
     try {
       setUploading(true);
-      setServerResponse(null);
 
       const formData = new FormData();
-      formData.append("file", {
-        uri: video.uri,
-        name: "video.mp4", // nom arbitraire
-        type: "video/mp4", // tu pourras adapter ensuite
+      formData.append('file', {
+        uri: videoLocal.uri,
+        name: 'video.mp4',
+        type: 'video/mp4',
       });
 
-      console.log("Tentative d'upload vers http://192.168.68.54:3000/upload");
-      console.log("URI vidéo:", video.uri);
-
-      const response = await fetch("http://192.168.68.54:3000/upload", {
-        method: "POST",
+      const res = await fetch(`${SERVER_URL}/upload`, {
+        method: 'POST',
         body: formData,
-        // ne PAS mettre de Content-Type ici, fetch le gère tout seul
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Erreur serveur: ${response.status} - ${errorText}`);
+      if (!res.ok) {
+        throw new Error('Erreur serveur');
       }
 
-      const json = await response.json();
-      setServerResponse(json);
-    } catch (err) {
-      console.error("Erreur complète:", err);
-      console.error("Message:", err.message);
-      console.error("Stack:", err.stack);
-      
-      let errorMessage = "Erreur lors de l'upload";
-      if (err.message) {
-        errorMessage += `\n${err.message}`;
-      }
-      if (err.message && err.message.includes("Network request failed")) {
-        errorMessage += "\n\nVérifie que:\n- Le serveur backend est démarré\n- L'IP 192.168.68.54 est correcte\n- L'appareil et le serveur sont sur le même réseau";
-      }
-      
-      alert(errorMessage);
-    } finally {
+      const json = await res.json();
+      console.log('Réponse serveur :', json);
+
       setUploading(false);
+      setProcessedVideoUrl(json.processedVideoUrl);
+      setSubtitles(json.subtitles || []);
+      setCurrentSubtitle('');
+    } catch (e) {
+      console.error(e);
+      setUploading(false);
+      Alert.alert('Erreur', "Impossible d'envoyer la vidéo.");
     }
-  }
+  };
+
+  // ✨ Callback appelé en continu pendant la lecture
+  const handlePlaybackStatusUpdate = (status) => {
+    if (!status.isLoaded || !subtitles.length) return;
+
+    const currentTimeSec = status.positionMillis / 1000;
+
+    // On cherche le segment dont le start/end encadre la position
+    const active = subtitles.find(
+      (seg) => currentTimeSec >= seg.start && currentTimeSec <= seg.end
+    );
+
+    if (active) {
+      if (active.text !== currentSubtitle) {
+        setCurrentSubtitle(active.text);
+      }
+    } else {
+      if (currentSubtitle !== '') {
+        setCurrentSubtitle('');
+      }
+    }
+  };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Compound</Text>
-      <TouchableOpacity style={styles.button} onPress={pickVideo}>
-        <Text style={styles.buttonText}>Choisir une vidéo</Text>
-      </TouchableOpacity>
+    <ScrollView
+      contentContainerStyle={{
+        flexGrow: 1,
+        paddingTop: 80,
+        paddingHorizontal: 16,
+        backgroundColor: '#fff',
+      }}
+    >
+      <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>
+        Test vidéo + sous-titres
+      </Text>
 
-      {video && (
-        <View style={{ marginTop: 20 }}>
-          <Text>Vidéo sélectionnée :</Text>
-          <Text numberOfLines={1}>URI : {video.uri}</Text>
-          {video.duration && (
-            <Text>Durée : {Math.round(video.duration / 1000)} sec</Text>
-          )}
+      <Button title="Choisir une vidéo" onPress={pickVideo} />
 
-          <View style={{ marginTop: 16 }}>
-            {uploading ? (
-              <ActivityIndicator size="small" />
-            ) : (
-              <Button
-                title="Envoyer pour montage + sous-titres"
-                onPress={uploadVideo}
-              />
-            )}
-          </View>
+      {videoLocal && !processedVideoUrl && (
+        <View style={{ marginTop: 16 }}>
+          <Text>Prévisualisation locale :</Text>
+          <Video
+            source={{ uri: videoLocal.uri }}
+            style={{
+              width: '100%',
+              height: 220,
+              backgroundColor: '#000',
+              marginTop: 8,
+            }}
+            useNativeControls
+            resizeMode="contain"
+          />
         </View>
       )}
 
-      {serverResponse && (
-        <View style={{ marginTop: 24 }}>
-          <Text style={{ fontWeight: "bold", marginBottom: 8 }}>
-            Résultat du traitement :
+      <View style={{ marginTop: 24 }}>
+        {uploading ? (
+          <View style={{ alignItems: 'center' }}>
+            <ActivityIndicator size="large" />
+            <Text style={{ marginTop: 8 }}>Envoi + traitement en cours...</Text>
+          </View>
+        ) : (
+          <Button title="Envoyer au backend" onPress={uploadVideo} />
+        )}
+      </View>
+
+      {processedVideoUrl && (
+        <View style={{ marginTop: 32 }}>
+          <Text style={{ fontWeight: 'bold', marginBottom: 8 }}>
+            Vidéo montée (avec sous-titres)
           </Text>
+          <Video
+            ref={videoRef}
+            source={{ uri: processedVideoUrl }}
+            style={{
+              width: '100%',
+              height: 220,
+              backgroundColor: '#000',
+            }}
+            useNativeControls
+            resizeMode="contain"
+            onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+          />
 
-          <Text>{serverResponse.message}</Text>
+          {/* Sous-titre affiché en dessous de la vidéo */}
+          <View style={{ marginTop: 12, minHeight: 40, justifyContent: 'center' }}>
+            <Text
+              style={{
+                textAlign: 'center',
+                fontSize: 16,
+                fontWeight: '600',
+                paddingHorizontal: 8,
+              }}
+            >
+              {currentSubtitle}
+            </Text>
+          </View>
 
-          {serverResponse?.processedVideoUrl && (
+          {/* Optionnel : debug des segments */}
+          {subtitles.length > 0 && (
             <View style={{ marginTop: 16 }}>
-              <Text>Vidéo montée :</Text>
-              <Video
-                source={{ uri: serverResponse.processedVideoUrl }}
-                style={{
-                  width: "100%",
-                  height: 220,
-                  backgroundColor: "#000",
-                  marginTop: 8,
-                }}
-                useNativeControls
-                resizeMode="contain"
-                isMuted={false}
-              />
-            </View>
-          )}
-          {serverResponse?.transcription && (
-            <View style={{ marginTop: 16 }}>
-              <Text style={{ fontWeight: "bold", marginBottom: 4 }}>
-                Transcription :
+              <Text style={{ fontWeight: 'bold', marginBottom: 4 }}>
+                Segments sous-titres (debug) :
               </Text>
-              <Text style={{ fontSize: 14 }}>
-                {serverResponse?.transcription}
-              </Text>
-            </View>
-          )}
-          {serverResponse?.segments && serverResponse.segments.length > 0 && (
-            <View style={{ marginTop: 16 }}>
-              <Text style={{ fontWeight: "bold" }}>Segments :</Text>
-              {serverResponse.segments.map((seg, i) => (
-                <Text key={i}>
-                  [{seg.start.toFixed(2)}s - {seg.end.toFixed(2)}s] {seg.text}
+              {subtitles.map((seg, i) => (
+                <Text key={i} style={{ fontSize: 12 }}>
+                  [{seg.start.toFixed(1)}s → {seg.end.toFixed(1)}s] {seg.text}
                 </Text>
               ))}
             </View>
@@ -180,33 +186,3 @@ export default function App() {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    display: "flex",
-    padding: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#fff",
-    height: "100%",
-    width: "100%",
-  },
-  buttonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  button: {
-    marginTop: 20,
-    padding: 10,
-    backgroundColor: "#007AFF",
-    borderRadius: 5,
-    width: "50%",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 20,
-  },
-});
