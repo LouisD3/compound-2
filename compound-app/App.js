@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, Button, ActivityIndicator, Alert, ScrollView, Dimensions } from 'react-native';
+import { View, Text, Button, ActivityIndicator, Alert, ScrollView, Dimensions, TouchableOpacity, StyleSheet } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
 import { Video } from 'expo-av';
 
@@ -104,63 +105,63 @@ export default function App() {
   };
 
   return (
-    <ScrollView
-      contentContainerStyle={{
-        flexGrow: 1,
-        paddingTop: 80,
-        paddingHorizontal: 16,
-        backgroundColor: '#fff',
-      }}
-    >
-      <Text style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 16 }}>
-        Test vidéo + sous-titres
-      </Text>
+    <>
+      <StatusBar style="light" backgroundColor="#121212" />
+      <ScrollView
+        contentContainerStyle={styles.container}
+      >
+        <Text style={styles.title}>
+          Test vidéo + sous-titres
+        </Text>
 
-      <Button title="Choisir une vidéo" onPress={pickVideo} />
+      <TouchableOpacity style={styles.button} onPress={pickVideo}>
+        <Text style={styles.buttonText}>Choisir une vidéo</Text>
+      </TouchableOpacity>
 
       {videoLocal && !processedVideoUrl && (
-        <View style={{ marginTop: 16 }}>
-          <Text>Prévisualisation locale :</Text>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Prévisualisation locale</Text>
           <Video
             source={{ uri: videoLocal.uri }}
-            style={{
-              width: '100%',
-              height: videoLocal.width && videoLocal.height 
-                ? (screenWidth * (videoLocal.height / videoLocal.width))
-                : 220,
-              backgroundColor: '#000',
-              marginTop: 8,
-            }}
+            style={[
+              styles.video,
+              {
+                height: videoLocal.width && videoLocal.height 
+                  ? (screenWidth * (videoLocal.height / videoLocal.width))
+                  : 220,
+              }
+            ]}
             useNativeControls
             resizeMode="cover"
           />
         </View>
       )}
 
-      <View style={{ marginTop: 24 }}>
+      <View style={styles.uploadSection}>
         {uploading ? (
-          <View style={{ alignItems: 'center' }}>
-            <ActivityIndicator size="large" />
-            <Text style={{ marginTop: 8 }}>Envoi + traitement en cours...</Text>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#fff" />
+            <Text style={styles.loadingText}>Envoi + traitement en cours...</Text>
           </View>
         ) : (
-          <Button title="Envoyer au backend" onPress={uploadVideo} />
+          <TouchableOpacity style={styles.button} onPress={uploadVideo}>
+            <Text style={styles.buttonText}>Envoyer au backend</Text>
+          </TouchableOpacity>
         )}
       </View>
 
       {processedVideoUrl && (
-        <View style={{ marginTop: 32 }}>
-          <Text style={{ fontWeight: 'bold', marginBottom: 8 }}>
-            Vidéo montée (avec sous-titres)
-          </Text>
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Vidéo montée (avec sous-titres)</Text>
           <Video
             ref={videoRef}
             source={{ uri: processedVideoUrl }}
-            style={{
-              width: '100%',
-              height: processedVideoHeight,
-              backgroundColor: '#000',
-            }}
+            style={[
+              styles.video,
+              {
+                height: processedVideoHeight,
+              }
+            ]}
             useNativeControls
             resizeMode="cover"
             onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
@@ -186,12 +187,12 @@ export default function App() {
 
           {/* Optionnel : debug des segments */}
           {subtitles.length > 0 && (
-            <View style={{ marginTop: 16 }}>
-              <Text style={{ fontWeight: 'bold', marginBottom: 4 }}>
+            <View style={styles.debugSection}>
+              <Text style={styles.debugTitle}>
                 Segments sous-titres (debug) :
               </Text>
               {subtitles.map((seg, i) => (
-                <Text key={i} style={{ fontSize: 12 }}>
+                <Text key={i} style={styles.debugText}>
                   [{seg.start.toFixed(1)}s → {seg.end.toFixed(1)}s] {seg.text}
                 </Text>
               ))}
@@ -199,6 +200,101 @@ export default function App() {
           )}
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flexGrow: 1,
+    paddingTop: 60,
+    paddingHorizontal: 16,
+    paddingBottom: 32,
+    backgroundColor: '#121212', 
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 24,
+    color: '#fff',
+    textAlign: 'center',
+  },
+  button: {
+    backgroundColor: '#fff',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginBottom: 16,
+    alignItems: 'center',
+    shadowColor: '#fff',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  buttonText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 24,
+    shadowColor: '#fff',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: '#000',
+  },
+  video: {
+    width: '100%',
+    backgroundColor: '#000',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  uploadSection: {
+    marginTop: 24,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#fff',
+    fontSize: 16,
+  },
+  debugSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  debugTitle: {
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#000',
+    fontSize: 14,
+  },
+  debugText: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+});
