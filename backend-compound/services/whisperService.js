@@ -26,6 +26,80 @@ async function transcribeWithWhisperVerbose(filePath) {
 
 // ---- Helpers pour SRT ----
 
+/**
+ * Divise les segments longs en segments plus courts pour un affichage plus lisible
+ * @param {Array} segments - Segments Whisper originaux
+ * @param {number} maxCharsPerSegment - Nombre maximum de caractères par segment (défaut: 40)
+ * @param {number} maxDurationPerSegment - Durée maximum par segment en secondes (défaut: 3)
+ */
+function splitLongSegments(segments, maxCharsPerSegment = 40, maxDurationPerSegment = 3) {
+  if (!segments || !segments.length) return [];
+
+  const splitSegments = [];
+
+  segments.forEach((segment) => {
+    const text = segment.text.trim();
+    const duration = segment.end - segment.start;
+
+    // Si le segment est court, on le garde tel quel
+    if (text.length <= maxCharsPerSegment && duration <= maxDurationPerSegment) {
+      splitSegments.push(segment);
+      return;
+    }
+
+    // Diviser le texte en phrases ou mots
+    // On divise sur les ponctuations et espaces
+    const words = text.split(/([.,!?;:]\s*|\s+)/);
+    const chunks = [];
+    let currentChunk = '';
+
+    words.forEach((word) => {
+      if ((currentChunk + word).length <= maxCharsPerSegment) {
+        currentChunk += word;
+      } else {
+        if (currentChunk.trim()) {
+          chunks.push(currentChunk.trim());
+        }
+        currentChunk = word;
+      }
+    });
+
+    if (currentChunk.trim()) {
+      chunks.push(currentChunk.trim());
+    }
+
+    // Si on n'a qu'un seul chunk (texte trop long sans ponctuation), on divise par nombre de caractères
+    if (chunks.length === 0 || (chunks.length === 1 && chunks[0].length > maxCharsPerSegment)) {
+      chunks.length = 0;
+      for (let i = 0; i < text.length; i += maxCharsPerSegment) {
+        const chunk = text.substring(i, i + maxCharsPerSegment).trim();
+        if (chunk) {
+          chunks.push(chunk);
+        }
+      }
+    }
+
+    // Créer des segments avec des timestamps proportionnels
+    if (chunks.length > 0) {
+      const chunkDuration = duration / chunks.length;
+      chunks.forEach((chunk, index) => {
+        if (chunk) {
+          splitSegments.push({
+            start: segment.start + (index * chunkDuration),
+            end: segment.start + ((index + 1) * chunkDuration),
+            text: chunk,
+          });
+        }
+      });
+    } else {
+      // Fallback : garder le segment original si on n'a pas pu le diviser
+      splitSegments.push(segment);
+    }
+  });
+
+  return splitSegments;
+}
+
 // 10.123 -> "00:00:10,123"
 function formatTimeSrt(seconds) {
   const totalMs = Math.round(seconds * 1000);
@@ -64,18 +138,24 @@ async function writeSrtFile(segments, baseFileName) {
     fs.mkdirSync(subtitlesDir);
   }
 
+  // Diviser les segments longs en segments plus courts
+  const shortSegments = splitLongSegments(segments, 40, 3); // 40 caractères max, 3 secondes max
+
   const srtFileName = baseFileName + '.srt';
   const srtPath = path.join(subtitlesDir, srtFileName);
 
-  const srtContent = buildSrtFromSegments(segments);
+  const srtContent = buildSrtFromSegments(shortSegments);
   await fsPromises.writeFile(srtPath, srtContent, 'utf8');
 
   console.log('Fichier SRT généré :', srtPath);
-  return { srtPath, srtFileName };
+  console.log(`Segments originaux: ${segments.length}, Segments après division: ${shortSegments.length}`);
+  
+  return { srtPath, srtFileName, segments: shortSegments };
 }
 
 module.exports = {
   transcribeWithWhisperVerbose,
   buildSrtFromSegments,
   writeSrtFile,
+  splitLongSegments,
 };

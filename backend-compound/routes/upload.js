@@ -16,6 +16,7 @@ const {
 const {
   transcribeWithWhisperVerbose,
   writeSrtFile,
+  splitLongSegments,
 } = require("../services/whisperService");
 
 const router = express.Router();
@@ -84,10 +85,13 @@ router.post("/upload", upload.single("file"), async (req, res) => {
       processedFileName,
       path.extname(processedFileName)
     );
-    const { srtPath, srtFileName } = await writeSrtFile(
+    const { srtPath, srtFileName, segments: shortSegments } = await writeSrtFile(
       whisperData.segments || [],
       baseName
     );
+
+    // Utiliser les segments courts pour la réponse
+    const finalSubtitles = shortSegments || splitLongSegments(whisperData.segments || [], 40, 3);
 
     const srtUrl = `http://${SERVER_IP}:${port}/subtitles/${srtFileName}`;
 
@@ -99,10 +103,10 @@ router.post("/upload", upload.single("file"), async (req, res) => {
     
     try {
       await burnSubtitlesIntoVideo(processedPath, srtPath, videoWithSubtitlesPath, {
-        fontSize: 24,
+        fontSize: 14,  // Style TikTok (réduit de 24 à 14)
         fontColor: 'white',
         backgroundColor: 'black@0.7',
-        marginBottom: 30,
+        marginBottom: 20,  // Réduit de 30 à 20
       });
 
       // Utiliser la vidéo avec sous-titres incrustés comme vidéo finale
@@ -116,12 +120,15 @@ router.post("/upload", upload.single("file"), async (req, res) => {
         srtFileName,
         nonSilentSegments,
         fullText: whisperData.text || "",
-        subtitles: whisperData.segments || [],
+        subtitles: finalSubtitles, // Utiliser les segments courts
       });
     } catch (subtitleError) {
       console.error("Erreur lors de l'incrustation des sous-titres :", subtitleError);
       // En cas d'erreur, on retourne quand même la vidéo sans sous-titres incrustés
       const processedVideoUrl = `http://${SERVER_IP}:${port}/processed/${processedFileName}`;
+      
+      // Utiliser les segments courts même en cas d'erreur
+      const finalSubtitlesFallback = splitLongSegments(whisperData.segments || [], 40, 3);
       
       res.json({
         message: "Vidéo nettoyée + sous-titres générés (non incrustés)",
@@ -130,7 +137,7 @@ router.post("/upload", upload.single("file"), async (req, res) => {
         srtFileName,
         nonSilentSegments,
         fullText: whisperData.text || "",
-        subtitles: whisperData.segments || [],
+        subtitles: finalSubtitlesFallback, // Utiliser les segments courts
         warning: "Les sous-titres n'ont pas pu être incrustés dans la vidéo",
       });
     }

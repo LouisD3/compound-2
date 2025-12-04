@@ -159,7 +159,7 @@ export default function App() {
             <Text
               style={{
                 textAlign: 'center',
-                fontSize: 16,
+                fontSize: 14,  // Style TikTok (réduit de 16 à 14)
                 fontWeight: '600',
                 paddingHorizontal: 8,
               }}
