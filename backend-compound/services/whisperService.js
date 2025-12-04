@@ -50,10 +50,12 @@ function buildSrtFromSegments(segments) {
     const end = formatTimeSrt(seg.end);
     const text = (seg.text || '').trim();
 
-    return `${index + 1}\n${start} --> ${end}\n${text}\n`;
+    // Format SRT : numéro, timestamps, texte, puis ligne vide
+    return `${index + 1}\n${start} --> ${end}\n${text}`;
   });
 
-  return lines.join('\n'); // ligne vide entre chaque bloc
+  // Joindre avec double saut de ligne pour avoir une ligne vide entre chaque bloc
+  return lines.join('\n\n') + '\n';
 }
 
 async function writeSrtFile(segments, baseFileName) {

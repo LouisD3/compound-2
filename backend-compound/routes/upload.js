@@ -10,6 +10,7 @@ const {
   detectSilences,
   computeNonSilentSegments,
   cutAllNonSilentSegmentsAndConcat,
+  burnSubtitlesIntoVideo,
 } = require("../services/ffmpegService");
 
 const {
@@ -73,8 +74,6 @@ router.post("/upload", upload.single("file"), async (req, res) => {
       );
     }
 
-    const processedVideoUrl = `http://${SERVER_IP}:${port}/processed/${processedFileName}`;
-
     // Sous-titres sur la vidéo finale
     const audioForWhisper = await extractAudio(processedPath);
     const whisperData = await transcribeWithWhisperVerbose(audioForWhisper);
@@ -92,15 +91,49 @@ router.post("/upload", upload.single("file"), async (req, res) => {
 
     const srtUrl = `http://${SERVER_IP}:${port}/subtitles/${srtFileName}`;
 
-    res.json({
-      message: "Vidéo nettoyée + sous-titres générés",
-      processedVideoUrl,
-      subtitlesUrl: srtUrl,
-      srtFileName,
-      nonSilentSegments,
-      fullText: whisperData.text || "",
-      subtitles: whisperData.segments || [],
-    });
+    // ✨ Incruster les sous-titres directement dans la vidéo
+    const videoWithSubtitlesPath = path.join(
+      path.dirname(processedPath),
+      baseName + '_with_subs' + path.extname(processedFileName)
+    );
+    
+    try {
+      await burnSubtitlesIntoVideo(processedPath, srtPath, videoWithSubtitlesPath, {
+        fontSize: 24,
+        fontColor: 'white',
+        backgroundColor: 'black@0.7',
+        marginBottom: 30,
+      });
+
+      // Utiliser la vidéo avec sous-titres incrustés comme vidéo finale
+      const finalVideoFileName = path.basename(videoWithSubtitlesPath);
+      const processedVideoUrl = `http://${SERVER_IP}:${port}/processed/${finalVideoFileName}`;
+
+      res.json({
+        message: "Vidéo nettoyée + sous-titres générés et incrustés",
+        processedVideoUrl,
+        subtitlesUrl: srtUrl,
+        srtFileName,
+        nonSilentSegments,
+        fullText: whisperData.text || "",
+        subtitles: whisperData.segments || [],
+      });
+    } catch (subtitleError) {
+      console.error("Erreur lors de l'incrustation des sous-titres :", subtitleError);
+      // En cas d'erreur, on retourne quand même la vidéo sans sous-titres incrustés
+      const processedVideoUrl = `http://${SERVER_IP}:${port}/processed/${processedFileName}`;
+      
+      res.json({
+        message: "Vidéo nettoyée + sous-titres générés (non incrustés)",
+        processedVideoUrl,
+        subtitlesUrl: srtUrl,
+        srtFileName,
+        nonSilentSegments,
+        fullText: whisperData.text || "",
+        subtitles: whisperData.segments || [],
+        warning: "Les sous-titres n'ont pas pu être incrustés dans la vidéo",
+      });
+    }
   } catch (err) {
     console.error("Erreur traitement :", err);
     res.status(500).json({ error: "Erreur lors du traitement de la vidéo" });

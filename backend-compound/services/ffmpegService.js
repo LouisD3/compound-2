@@ -179,10 +179,98 @@ async function cutAllNonSilentSegmentsAndConcat(inputVideoPath, outputVideoPath,
   console.log('Concaténation terminée avec succès');
 }
 
+/**
+ * Incruste les sous-titres directement dans la vidéo en utilisant un fichier SRT
+ * @param {string} inputVideoPath - Chemin de la vidéo d'entrée
+ * @param {string} srtPath - Chemin du fichier SRT
+ * @param {string} outputVideoPath - Chemin de la vidéo de sortie avec sous-titres incrustés
+ * @param {object} options - Options de style (optionnel)
+ */
+async function burnSubtitlesIntoVideo(inputVideoPath, srtPath, outputVideoPath, options = {}) {
+  const {
+    fontSize = 24,
+    fontColor = 'white',
+    backgroundColor = 'black@0.7',
+    marginBottom = 30,
+    fontFamily = 'Arial'
+  } = options;
+
+  // Vérifier que le fichier SRT existe
+  if (!fs.existsSync(srtPath)) {
+    throw new Error(`Le fichier SRT n'existe pas : ${srtPath}`);
+  }
+
+  // Vérifier que la vidéo d'entrée existe
+  if (!fs.existsSync(inputVideoPath)) {
+    throw new Error(`La vidéo d'entrée n'existe pas : ${inputVideoPath}`);
+  }
+
+  // Convertir la couleur en format hexadécimal pour ASS (format BGR inversé)
+  // white = &HFFFFFF, black = &H000000
+  let primaryColor = '&HFFFFFF';
+  if (fontColor === 'black') {
+    primaryColor = '&H000000';
+  } else if (fontColor === 'yellow') {
+    primaryColor = '&H00FFFF';
+  }
+
+  // Convertir l'opacité du fond (black@0.7 = 70% d'opacité)
+  // Format ASS : BackColour=&HAABBGGRR (alpha en premier, puis BGR)
+  let backColor = '&H80000000'; // noir semi-transparent par défaut
+  if (backgroundColor.includes('@')) {
+    const opacity = parseFloat(backgroundColor.split('@')[1]);
+    const alpha = Math.round((1 - opacity) * 255).toString(16).padStart(2, '0');
+    backColor = `&H${alpha}000000`;
+  }
+
+  // Construire le filtre subtitles avec style
+  // Alignment=2 = en bas, centré (10 = en haut à gauche, 5 = centré, 2 = en bas centré)
+  // MarginV = marge verticale depuis le bas (en pixels)
+  const forceStyle = `FontName=${fontFamily},FontSize=${fontSize},PrimaryColour=${primaryColor},BackColour=${backColor},OutlineColour=&H000000,Outline=2,Shadow=1,Alignment=2,MarginV=${marginBottom}`;
+  
+  // Utiliser des chemins absolus et normaliser pour éviter les problèmes
+  const absSrtPath = path.resolve(srtPath);
+  const absInputPath = path.resolve(inputVideoPath);
+  const absOutputPath = path.resolve(outputVideoPath);
+
+  // Sur macOS/Linux, normaliser le chemin (remplacer backslashes par slashes)
+  // Le filtre subtitles de FFmpeg nécessite un chemin avec des slashes
+  let escapedSrt = absSrtPath.replace(/\\/g, '/');
+  
+  // Échapper les apostrophes dans le chemin pour le filtre subtitles
+  // Le filtre subtitles utilise des guillemets simples, donc on doit échapper les apostrophes
+  escapedSrt = escapedSrt.replace(/'/g, "\\'");
+  
+  // Construire le filtre avec échappement correct
+  // Le filtre subtitles accepte les chemins avec espaces s'ils sont dans des guillemets simples
+  const subtitlesFilter = `subtitles='${escapedSrt}':force_style='${forceStyle}'`;
+
+  // Construire la commande FFmpeg
+  // Utiliser -vf pour le filtre vidéo et -c:a copy pour ne pas réencoder l'audio
+  const cmd = `ffmpeg -y -i "${absInputPath}" -vf "${subtitlesFilter}" -c:v libx264 -preset veryfast -crf 23 -c:a copy -movflags +faststart "${absOutputPath}"`;
+
+  console.log('Commande FFmpeg pour incruster les sous-titres :');
+  console.log(cmd);
+  console.log('Fichier SRT utilisé :', absSrtPath);
+  
+  // Afficher un aperçu du contenu SRT pour déboguer
+  try {
+    const srtContent = await fsPromises.readFile(absSrtPath, 'utf8');
+    console.log('Aperçu du fichier SRT (premiers 500 caractères) :');
+    console.log(srtContent.substring(0, 500));
+  } catch (err) {
+    console.warn('Impossible de lire le fichier SRT pour déboguer :', err.message);
+  }
+  
+  await execShell(cmd);
+  console.log('Sous-titres incrustés dans la vidéo avec succès');
+}
+
 module.exports = {
   extractAudio,
   getMediaDuration,
   detectSilences,
   computeNonSilentSegments,
   cutAllNonSilentSegmentsAndConcat,
+  burnSubtitlesIntoVideo,
 };
