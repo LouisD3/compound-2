@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, Button, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, Text, Button, ActivityIndicator, Alert, ScrollView, Dimensions } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Video } from 'expo-av';
 
@@ -11,8 +11,10 @@ export default function App() {
   const [subtitles, setSubtitles] = useState([]);              // segments Whisper
   const [currentSubtitle, setCurrentSubtitle] = useState('');  // texte affiché
   const [uploading, setUploading] = useState(false);
+  const [processedVideoHeight, setProcessedVideoHeight] = useState(220); // Hauteur dynamique de la vidéo traitée
 
   const videoRef = useRef(null);
+  const screenWidth = Dimensions.get('window').width - 32; // Largeur disponible (moins padding)
 
   const pickVideo = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -26,6 +28,7 @@ export default function App() {
       setProcessedVideoUrl(null);
       setSubtitles([]);
       setCurrentSubtitle('');
+      setProcessedVideoHeight(220); // Reset hauteur
     }
   };
 
@@ -64,6 +67,13 @@ export default function App() {
       setProcessedVideoUrl(json.processedVideoUrl);
       setSubtitles(json.subtitles || []);
       setCurrentSubtitle('');
+      // Initialiser la hauteur avec les dimensions de la vidéo locale
+      if (videoLocal && videoLocal.width && videoLocal.height) {
+        const calculatedHeight = screenWidth * (videoLocal.height / videoLocal.width);
+        setProcessedVideoHeight(calculatedHeight);
+      } else {
+        setProcessedVideoHeight(220); // Fallback si pas de dimensions
+      }
     } catch (e) {
       console.error(e);
       setUploading(false);
@@ -115,12 +125,14 @@ export default function App() {
             source={{ uri: videoLocal.uri }}
             style={{
               width: '100%',
-              height: 220,
+              height: videoLocal.width && videoLocal.height 
+                ? (screenWidth * (videoLocal.height / videoLocal.width))
+                : 220,
               backgroundColor: '#000',
               marginTop: 8,
             }}
             useNativeControls
-            resizeMode="contain"
+            resizeMode="cover"
           />
         </View>
       )}
@@ -146,27 +158,31 @@ export default function App() {
             source={{ uri: processedVideoUrl }}
             style={{
               width: '100%',
-              height: 220,
+              height: processedVideoHeight,
               backgroundColor: '#000',
             }}
             useNativeControls
-            resizeMode="contain"
+            resizeMode="cover"
             onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
+            onLoad={(status) => {
+              // Calculer la hauteur basée sur les dimensions de la vidéo
+              if (status.isLoaded && status.naturalSize) {
+                const { width: videoWidth, height: videoHeight } = status.naturalSize;
+                if (videoWidth && videoHeight && videoWidth > 0 && videoHeight > 0) {
+                  const calculatedHeight = screenWidth * (videoHeight / videoWidth);
+                  console.log('Dimensions vidéo traitée:', { videoWidth, videoHeight, calculatedHeight });
+                  setProcessedVideoHeight(calculatedHeight);
+                }
+              }
+            }}
+            onLoadStart={() => {
+              // Utiliser les dimensions de la vidéo locale en attendant le chargement
+              if (videoLocal && videoLocal.width && videoLocal.height) {
+                const calculatedHeight = screenWidth * (videoLocal.height / videoLocal.width);
+                setProcessedVideoHeight(calculatedHeight);
+              }
+            }}
           />
-
-          {/* Sous-titre affiché en dessous de la vidéo */}
-          <View style={{ marginTop: 12, minHeight: 40, justifyContent: 'center' }}>
-            <Text
-              style={{
-                textAlign: 'center',
-                fontSize: 14,  // Style TikTok (réduit de 16 à 14)
-                fontWeight: '600',
-                paddingHorizontal: 8,
-              }}
-            >
-              {currentSubtitle}
-            </Text>
-          </View>
 
           {/* Optionnel : debug des segments */}
           {subtitles.length > 0 && (
