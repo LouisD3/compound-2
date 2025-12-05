@@ -221,6 +221,7 @@ export default function QuestionnaireScreen() {
               value={answers.bottleneckDeepDive}
               onChangeText={(text) => setAnswers({ ...answers, bottleneckDeepDive: text })}
               placeholder="Be honest about what's holding you back"
+              placeholderTextColor="#666"
               multiline
               numberOfLines={6}
             />
@@ -333,6 +334,7 @@ export default function QuestionnaireScreen() {
               value={answers.creatorResearch}
               onChangeText={(text) => setAnswers({ ...answers, creatorResearch: text })}
               placeholder="Enter creator names/handles"
+              placeholderTextColor="#666"
               multiline
               numberOfLines={6}
             />
@@ -348,6 +350,7 @@ export default function QuestionnaireScreen() {
               value={answers.audienceDefinition}
               onChangeText={(text) => setAnswers({ ...answers, audienceDefinition: text })}
               placeholder="Describe your target audience"
+              placeholderTextColor="#666"
               multiline
               numberOfLines={6}
             />
@@ -446,7 +449,7 @@ export default function QuestionnaireScreen() {
                     goals: { ...answers.goals, followers: Math.max(0, answers.goals.followers - 1000) }
                   })}
                 >
-                  <Text>-</Text>
+                  <Text style={styles.sliderButtonText}>-</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.sliderButton}
@@ -455,7 +458,7 @@ export default function QuestionnaireScreen() {
                     goals: { ...answers.goals, followers: Math.min(1000000, answers.goals.followers + 1000) }
                   })}
                 >
-                  <Text>+</Text>
+                  <Text style={styles.sliderButtonText}>+</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -479,7 +482,7 @@ export default function QuestionnaireScreen() {
                     goals: { ...answers.goals, views: Math.max(0, answers.goals.views - 10000) }
                   })}
                 >
-                  <Text>-</Text>
+                  <Text style={styles.sliderButtonText}>-</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.sliderButton}
@@ -488,7 +491,7 @@ export default function QuestionnaireScreen() {
                     goals: { ...answers.goals, views: Math.min(10000000, answers.goals.views + 10000) }
                   })}
                 >
-                  <Text>+</Text>
+                  <Text style={styles.sliderButtonText}>+</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -512,7 +515,7 @@ export default function QuestionnaireScreen() {
                     goals: { ...answers.goals, subscribers: Math.max(0, answers.goals.subscribers - 100) }
                   })}
                 >
-                  <Text>-</Text>
+                  <Text style={styles.sliderButtonText}>-</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.sliderButton}
@@ -521,7 +524,7 @@ export default function QuestionnaireScreen() {
                     goals: { ...answers.goals, subscribers: Math.min(100000, answers.goals.subscribers + 100) }
                   })}
                 >
-                  <Text>+</Text>
+                  <Text style={styles.sliderButtonText}>+</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -587,33 +590,51 @@ export default function QuestionnaireScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#000',
   },
   progressBarContainer: {
     padding: 16,
-    paddingTop: 40,
+    paddingTop: 50,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  progressBar: {
-    height: 4,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 2,
-    marginBottom: 8,
+  progressDotsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#007AFF',
-    borderRadius: 2,
+  progressDotContainer: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#666',
+  },
+  progressDotActive: {
+    backgroundColor: '#fff',
+  },
+  progressDotBar: {
+    position: 'absolute',
+    width: 12,
+    height: 2,
+    backgroundColor: '#fff',
+    borderRadius: 1,
   },
   progressText: {
-    textAlign: 'center',
-    fontSize: 12,
-    color: '#666',
+    fontSize: 14,
+    color: '#fff',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     padding: 24,
+    paddingBottom: 0,
   },
   welcomeContainer: {
     flex: 1,
@@ -621,83 +642,149 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 24,
   },
-  welcomeTitle: {
+  iconsContainer: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  starsIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+    gap: 8,
+  },
+  star: {
+    width: 8,
+    height: 8,
+    backgroundColor: '#fff',
+    borderRadius: 1,
+    transform: [{ rotate: '45deg' }],
+  },
+  star1: {
+    width: 6,
+    height: 6,
+  },
+  star2: {
+    width: 8,
+    height: 8,
+  },
+  star3: {
+    width: 7,
+    height: 7,
+  },
+  barsIcon: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 3,
+    height: 20,
+  },
+  bar: {
+    width: 3,
+    backgroundColor: '#fff',
+    borderRadius: 1.5,
+  },
+  bar1: {
+    height: 8,
+  },
+  bar2: {
+    height: 12,
+  },
+  bar3: {
+    height: 16,
+  },
+  bar4: {
+    height: 20,
+  },
+  brandName: {
     fontSize: 32,
     fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 12,
+  },
+  welcomeTitle: {
+    fontSize: 18,
     textAlign: 'center',
-    color: '#000',
+    color: '#fff',
   },
   pageContainer: {
     flex: 1,
+  },
+  heartIconContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  heartIcon: {
+    fontSize: 32,
   },
   pageTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 8,
-    color: '#000',
+    color: '#fff',
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
-    marginBottom: 24,
-    fontStyle: 'italic',
+    color: '#999',
+    marginBottom: 32,
   },
   label: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginTop: 16,
-    marginBottom: 8,
-    color: '#333',
+    fontSize: 14,
+    fontWeight: '500',
+    marginTop: 20,
+    marginBottom: 12,
+    color: '#fff',
   },
   textArea: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    minHeight: 100,
+    backgroundColor: '#1a1a1a',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+    minHeight: 120,
     textAlignVertical: 'top',
     fontSize: 16,
+    color: '#fff',
+    borderWidth: 0,
   },
   optionsScroll: {
     maxHeight: 400,
   },
   optionButton: {
-    borderWidth: 1,
-    borderColor: '#ccc',
+    backgroundColor: '#1a1a1a',
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 12,
     marginBottom: 12,
-    backgroundColor: '#fff',
+    borderWidth: 0,
   },
   optionButtonSelected: {
-    borderColor: '#007AFF',
-    backgroundColor: '#E3F2FD',
+    backgroundColor: '#2a2a2a',
+    borderWidth: 1,
+    borderColor: '#fff',
   },
   optionText: {
     fontSize: 16,
-    color: '#333',
+    color: '#fff',
   },
   optionTextSelected: {
-    color: '#007AFF',
+    color: '#fff',
     fontWeight: '600',
   },
   authButton: {
-    borderWidth: 1,
-    borderColor: '#ccc',
+    backgroundColor: '#1a1a1a',
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 12,
     marginBottom: 12,
-    backgroundColor: '#fff',
     alignItems: 'center',
+    borderWidth: 0,
   },
   authButtonSelected: {
-    borderColor: '#007AFF',
-    backgroundColor: '#E3F2FD',
+    backgroundColor: '#2a2a2a',
+    borderWidth: 1,
+    borderColor: '#fff',
   },
   authButtonText: {
     fontSize: 16,
-    color: '#333',
+    color: '#fff',
   },
   sliderContainer: {
     marginBottom: 32,
@@ -706,7 +793,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
-    color: '#333',
+    color: '#fff',
   },
   sliderRow: {
     flexDirection: 'row',
@@ -715,25 +802,25 @@ const styles = StyleSheet.create({
   },
   sliderMin: {
     fontSize: 12,
-    color: '#666',
+    color: '#999',
     width: 30,
   },
   sliderTrack: {
     flex: 1,
     height: 8,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: '#333',
     borderRadius: 4,
     marginHorizontal: 8,
     overflow: 'hidden',
   },
   sliderFill: {
     height: '100%',
-    backgroundColor: '#007AFF',
+    backgroundColor: '#fff',
     borderRadius: 4,
   },
   sliderMax: {
     fontSize: 12,
-    color: '#666',
+    color: '#999',
     width: 40,
   },
   sliderButtons: {
@@ -747,38 +834,53 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: '#333',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#1a1a1a',
+  },
+  sliderButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
   },
   buttonsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     padding: 24,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
     gap: 12,
+    position: 'relative',
+  },
+  previewButton: {
+    position: 'absolute',
+    left: 24,
+    bottom: 24,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#1a1a1a',
+  },
+  previewButtonText: {
+    fontSize: 14,
+    color: '#fff',
   },
   button: {
     flex: 1,
     padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 0,
+    backgroundColor: '#1a1a1a',
     alignItems: 'center',
   },
   buttonPrimary: {
-    backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
+    backgroundColor: '#2a2a2a',
   },
   buttonDisabled: {
     opacity: 0.5,
   },
   buttonText: {
     fontSize: 16,
-    color: '#333',
+    color: '#fff',
   },
   buttonTextPrimary: {
     fontSize: 16,
