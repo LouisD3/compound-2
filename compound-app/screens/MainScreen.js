@@ -107,6 +107,22 @@ export default function App() {
   return (
     <>
       <StatusBar style="light" backgroundColor="#121212" />
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>compound</Text>
+        <View style={styles.headerIcons}>
+          <View style={styles.starsIcon}>
+            <View style={[styles.star, styles.star1]} />
+            <View style={[styles.star, styles.star2]} />
+            <View style={[styles.star, styles.star3]} />
+          </View>
+          <View style={styles.barsIcon}>
+            <View style={[styles.bar, styles.bar1]} />
+            <View style={[styles.bar, styles.bar2]} />
+            <View style={[styles.bar, styles.bar3]} />
+            <View style={[styles.bar, styles.bar4]} />
+          </View>
+        </View>
+      </View>
       <ScrollView
         contentContainerStyle={styles.container}
       >

@@ -1,5 +1,5 @@
 // screens/QuestionnaireScreen.js
-import React, { useState } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { 
   View, 
   Text, 
@@ -8,7 +8,8 @@ import {
   TextInput, 
   TouchableOpacity, 
   ScrollView,
-  Switch
+  Switch,
+  PanResponder
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
@@ -50,6 +51,81 @@ const getPlatformIcon = (platform) => {
     default:
       return '';
   }
+};
+
+const Slider = ({ value, min, max, onValueChange, label, formatValue }) => {
+  const trackRef = useRef(null);
+  const onValueChangeRef = useRef(onValueChange);
+  const minRef = useRef(min);
+  const maxRef = useRef(max);
+
+  // Mettre à jour les refs quand les valeurs changent
+  onValueChangeRef.current = onValueChange;
+  minRef.current = min;
+  maxRef.current = max;
+
+  const percentage = ((value - min) / (max - min)) * 100;
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: (evt) => {
+          if (trackRef.current) {
+            trackRef.current.measure((x, y, width, height, pageX, pageY) => {
+              const touchX = evt.nativeEvent.pageX;
+              const newX = touchX - pageX;
+              const clampedX = Math.max(0, Math.min(width, newX));
+              const newPercentage = (clampedX / width) * 100;
+              const newValue = minRef.current + (newPercentage / 100) * (maxRef.current - minRef.current);
+              const roundedValue = Math.round(newValue);
+              onValueChangeRef.current(Math.max(minRef.current, Math.min(maxRef.current, roundedValue)));
+            });
+          }
+        },
+        onPanResponderMove: (evt) => {
+          if (trackRef.current) {
+            trackRef.current.measure((x, y, width, height, pageX, pageY) => {
+              const touchX = evt.nativeEvent.pageX;
+              const newX = touchX - pageX;
+              const clampedX = Math.max(0, Math.min(width, newX));
+              const newPercentage = (clampedX / width) * 100;
+              const newValue = minRef.current + (newPercentage / 100) * (maxRef.current - minRef.current);
+              const roundedValue = Math.round(newValue);
+              onValueChangeRef.current(Math.max(minRef.current, Math.min(maxRef.current, roundedValue)));
+            });
+          }
+        },
+      }),
+    [] // Pas de dépendances, on utilise des refs
+  );
+
+  return (
+    <View style={styles.sliderContainer}>
+      <Text style={styles.sliderLabel}>
+        {label}: {formatValue ? formatValue(value) : value.toLocaleString()}
+      </Text>
+      <View style={styles.sliderRow}>
+        <Text style={styles.sliderMin}>{formatValue ? formatValue(min) : min.toLocaleString()}</Text>
+        <View
+          ref={trackRef}
+          style={styles.sliderTrack}
+          {...panResponder.panHandlers}
+        >
+          <View style={[styles.sliderFill, { width: `${percentage}%` }]} />
+          <View
+            style={[
+              styles.sliderThumb,
+              { left: `${percentage}%`, marginLeft: -8 }
+            ]}
+            {...panResponder.panHandlers}
+          />
+        </View>
+        <Text style={styles.sliderMax}>{formatValue ? formatValue(max) : max.toLocaleString()}</Text>
+      </View>
+    </View>
+  );
 };
 
 export default function QuestionnaireScreen() {
@@ -467,104 +543,41 @@ export default function QuestionnaireScreen() {
           <View style={styles.pageContainer}>
             <Text style={styles.pageTitle}>What's your goal?</Text>
             
-            <View style={styles.sliderContainer}>
-              <Text style={styles.sliderLabel}>
-                Followers: {answers.goals.followers.toLocaleString()}
-              </Text>
-              <View style={styles.sliderRow}>
-                <Text style={styles.sliderMin}>0</Text>
-                <View style={styles.sliderTrack}>
-                  <View style={[styles.sliderFill, { width: `${(answers.goals.followers / 1000000) * 100}%` }]} />
-                </View>
-                <Text style={styles.sliderMax}>1M</Text>
-              </View>
-              <View style={styles.sliderButtons}>
-                <TouchableOpacity
-                  style={styles.sliderButton}
-                  onPress={() => setAnswers({
-                    ...answers,
-                    goals: { ...answers.goals, followers: Math.max(0, answers.goals.followers - 1000) }
-                  })}
-                >
-                  <Text style={styles.sliderButtonText}>-</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.sliderButton}
-                  onPress={() => setAnswers({
-                    ...answers,
-                    goals: { ...answers.goals, followers: Math.min(1000000, answers.goals.followers + 1000) }
-                  })}
-                >
-                  <Text style={styles.sliderButtonText}>+</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <Slider
+              value={answers.goals.followers}
+              min={0}
+              max={1000000}
+              onValueChange={(value) => setAnswers((prev) => ({
+                ...prev,
+                goals: { ...prev.goals, followers: value }
+              }))}
+              label="Followers"
+              formatValue={(val) => val >= 1000000 ? `${(val / 1000000).toFixed(1)}M` : val >= 1000 ? `${(val / 1000).toFixed(0)}K` : val.toString()}
+            />
 
-            <View style={styles.sliderContainer}>
-              <Text style={styles.sliderLabel}>
-                Views: {answers.goals.views.toLocaleString()}
-              </Text>
-              <View style={styles.sliderRow}>
-                <Text style={styles.sliderMin}>0</Text>
-                <View style={styles.sliderTrack}>
-                  <View style={[styles.sliderFill, { width: `${(answers.goals.views / 10000000) * 100}%` }]} />
-                </View>
-                <Text style={styles.sliderMax}>10M</Text>
-              </View>
-              <View style={styles.sliderButtons}>
-                <TouchableOpacity
-                  style={styles.sliderButton}
-                  onPress={() => setAnswers({
-                    ...answers,
-                    goals: { ...answers.goals, views: Math.max(0, answers.goals.views - 10000) }
-                  })}
-                >
-                  <Text style={styles.sliderButtonText}>-</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.sliderButton}
-                  onPress={() => setAnswers({
-                    ...answers,
-                    goals: { ...answers.goals, views: Math.min(10000000, answers.goals.views + 10000) }
-                  })}
-                >
-                  <Text style={styles.sliderButtonText}>+</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <Slider
+              value={answers.goals.views}
+              min={0}
+              max={10000000}
+              onValueChange={(value) => setAnswers((prev) => ({
+                ...prev,
+                goals: { ...prev.goals, views: value }
+              }))}
+              label="Views"
+              formatValue={(val) => val >= 1000000 ? `${(val / 1000000).toFixed(1)}M` : val >= 1000 ? `${(val / 1000).toFixed(0)}K` : val.toString()}
+            />
 
-            <View style={styles.sliderContainer}>
-              <Text style={styles.sliderLabel}>
-                Subscribers: {answers.goals.subscribers.toLocaleString()}
-              </Text>
-              <View style={styles.sliderRow}>
-                <Text style={styles.sliderMin}>0</Text>
-                <View style={styles.sliderTrack}>
-                  <View style={[styles.sliderFill, { width: `${(answers.goals.subscribers / 100000) * 100}%` }]} />
-                </View>
-                <Text style={styles.sliderMax}>100K</Text>
-              </View>
-              <View style={styles.sliderButtons}>
-                <TouchableOpacity
-                  style={styles.sliderButton}
-                  onPress={() => setAnswers({
-                    ...answers,
-                    goals: { ...answers.goals, subscribers: Math.max(0, answers.goals.subscribers - 100) }
-                  })}
-                >
-                  <Text style={styles.sliderButtonText}>-</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.sliderButton}
-                  onPress={() => setAnswers({
-                    ...answers,
-                    goals: { ...answers.goals, subscribers: Math.min(100000, answers.goals.subscribers + 100) }
-                  })}
-                >
-                  <Text style={styles.sliderButtonText}>+</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <Slider
+              value={answers.goals.subscribers}
+              min={0}
+              max={100000}
+              onValueChange={(value) => setAnswers((prev) => ({
+                ...prev,
+                goals: { ...prev.goals, subscribers: value }
+              }))}
+              label="Subscribers"
+              formatValue={(val) => val >= 1000 ? `${(val / 1000).toFixed(0)}K` : val.toString()}
+            />
           </View>
         );
 
@@ -969,42 +982,42 @@ const styles = StyleSheet.create({
   },
   sliderTrack: {
     flex: 1,
-    height: 8,
+    height: 6,
     backgroundColor: '#333',
-    borderRadius: 4,
+    borderRadius: 3,
     marginHorizontal: 8,
-    overflow: 'hidden',
+    position: 'relative',
+    justifyContent: 'center',
   },
   sliderFill: {
     height: '100%',
     backgroundColor: '#fff',
-    borderRadius: 4,
+    borderRadius: 3,
+    position: 'absolute',
+    left: 0,
+  },
+  sliderThumb: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    position: 'absolute',
+    top: -5,
+    borderWidth: 2,
+    borderColor: '#000',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
   },
   sliderMax: {
     fontSize: 12,
     color: '#999',
     width: 40,
-  },
-  sliderButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 16,
-    marginTop: 8,
-  },
-  sliderButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#333',
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1a1a1a',
-  },
-  sliderButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
   },
   buttonsRow: {
     flexDirection: 'row',
