@@ -121,7 +121,11 @@ export default function App() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>compound</Text>
       </View>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView 
+        contentContainerStyle={styles.container}
+        style={styles.scrollView}
+        bounces={true}
+      >
         <Text style={styles.title}>Create your content</Text>
         <Text style={styles.subtitle}>
           Import a raw clip and let AI handle the subtitles and silence cuts.
@@ -236,6 +240,9 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     color: "#fff",
+  },
+  scrollView: {
+    backgroundColor: "#000",
   },
   container: {
     flexGrow: 1,
