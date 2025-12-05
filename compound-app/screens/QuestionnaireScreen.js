@@ -225,6 +225,12 @@ export default function QuestionnaireScreen() {
             </View>
             <Text style={styles.brandName}>compound</Text>
             <Text style={styles.welcomeTitle}>It all starts with one post</Text>
+            <TouchableOpacity 
+              style={styles.devButton}
+              onPress={() => navigation.replace('Main')}
+            >
+              <Text style={styles.devButtonText}>dev</Text>
+            </TouchableOpacity>
           </View>
         );
 
@@ -758,6 +764,22 @@ const styles = StyleSheet.create({
     fontSize: 18,
     textAlign: 'center',
     color: '#fff',
+    marginBottom: 40,
+  },
+  devButton: {
+    position: 'absolute',
+    bottom: 40,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  devButtonText: {
+    fontSize: 12,
+    color: '#999',
+    fontWeight: '500',
   },
   pageContainer: {
     flex: 1,
