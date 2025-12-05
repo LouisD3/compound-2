@@ -31,7 +31,26 @@ const NICHE_OPTIONS = [
   'Other'
 ];
 const ANGLE_OPTIONS = ['Educational', 'Entertaining', 'Inspirational', 'Other'];
-const PLATFORM_OPTIONS = ['LinkedIn', 'Twitter', 'Instagram', 'TikTok', 'YouTube', 'Facebook'];
+const PLATFORM_OPTIONS = ['LinkedIn', 'X', 'Instagram', 'TikTok', 'YouTube', 'Facebook'];
+
+const getPlatformIcon = (platform) => {
+  switch (platform) {
+    case 'LinkedIn':
+      return 'in';
+    case 'X':
+      return 'X';
+    case 'Instagram':
+      return '◉';
+    case 'TikTok':
+      return '♪';
+    case 'YouTube':
+      return '▶';
+    case 'Facebook':
+      return 'f';
+    default:
+      return '';
+  }
+};
 
 export default function QuestionnaireScreen() {
   const navigation = useNavigation();
@@ -136,9 +155,6 @@ export default function QuestionnaireScreen() {
       case 1:
         return (
           <View style={styles.pageContainer}>
-            <View style={styles.heartIconContainer}>
-              <Text style={styles.heartIcon}>❤️</Text>
-            </View>
             <Text style={styles.pageTitle}>Why do you want to post content?</Text>
             <Text style={styles.subtitle}>(be honest)</Text>
             
@@ -262,8 +278,8 @@ export default function QuestionnaireScreen() {
                 handleNext();
               }}
             >
-              <Text style={styles.authButtonLogo}>🐦</Text>
-              <Text style={styles.authButtonText}>Continue with Twitter</Text>
+              <Text style={styles.authButtonLogo}>X</Text>
+              <Text style={styles.authButtonText}>Continue with X</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -291,9 +307,14 @@ export default function QuestionnaireScreen() {
 
       case 5:
         return (
-          <View style={styles.pageContainer}>
+          <View style={styles.pageContainerWithScroll}>
             <Text style={styles.pageTitle}>Question 1: What is your niche?</Text>
-            <ScrollView style={styles.optionsScroll}>
+            <ScrollView 
+              style={styles.optionsScroll}
+              contentContainerStyle={styles.optionsScrollContent}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
+            >
               {NICHE_OPTIONS.map((option) => (
                 <TouchableOpacity
                   key={option}
@@ -375,15 +396,15 @@ export default function QuestionnaireScreen() {
         return (
           <View style={styles.pageContainer}>
             <Text style={styles.pageTitle}>Where do you want to post?</Text>
-            <ScrollView style={styles.optionsScroll}>
+            <View style={styles.platformGrid}>
               {PLATFORM_OPTIONS.map((platform) => {
                 const isSelected = answers.platformPreferences.includes(platform);
                 return (
                   <TouchableOpacity
                     key={platform}
                     style={[
-                      styles.optionButton,
-                      isSelected && styles.optionButtonSelected
+                      styles.platformButton,
+                      isSelected && styles.platformButtonSelected
                     ]}
                     onPress={() => {
                       const newPrefs = isSelected
@@ -392,16 +413,17 @@ export default function QuestionnaireScreen() {
                       setAnswers({ ...answers, platformPreferences: newPrefs });
                     }}
                   >
+                    <Text style={styles.platformIcon}>{getPlatformIcon(platform)}</Text>
                     <Text style={[
-                      styles.optionText,
-                      isSelected && styles.optionTextSelected
+                      styles.platformText,
+                      isSelected && styles.platformTextSelected
                     ]}>
-                      {platform} {isSelected && '✓'}
+                      {platform}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
-            </ScrollView>
+            </View>
           </View>
         );
 
@@ -409,15 +431,15 @@ export default function QuestionnaireScreen() {
         return (
           <View style={styles.pageContainer}>
             <Text style={styles.pageTitle}>Where do you spend the most time?</Text>
-            <ScrollView style={styles.optionsScroll}>
+            <View style={styles.platformGrid}>
               {PLATFORM_OPTIONS.map((platform) => {
                 const isSelected = answers.platformUsage.includes(platform);
                 return (
                   <TouchableOpacity
                     key={platform}
                     style={[
-                      styles.optionButton,
-                      isSelected && styles.optionButtonSelected
+                      styles.platformButton,
+                      isSelected && styles.platformButtonSelected
                     ]}
                     onPress={() => {
                       const newUsage = isSelected
@@ -426,16 +448,17 @@ export default function QuestionnaireScreen() {
                       setAnswers({ ...answers, platformUsage: newUsage });
                     }}
                   >
+                    <Text style={styles.platformIcon}>{getPlatformIcon(platform)}</Text>
                     <Text style={[
-                      styles.optionText,
-                      isSelected && styles.optionTextSelected
+                      styles.platformText,
+                      isSelected && styles.platformTextSelected
                     ]}>
-                      {platform} {isSelected && '✓'}
+                      {platform}
                     </Text>
                   </TouchableOpacity>
                 );
               })}
-            </ScrollView>
+            </View>
           </View>
         );
 
@@ -587,11 +610,6 @@ export default function QuestionnaireScreen() {
 
       {currentPage !== 4 && (
         <View style={styles.buttonsRow}>
-          {currentPage === 1 && (
-            <TouchableOpacity style={styles.previewButton}>
-              <Text style={styles.previewButtonText}>Aperçu</Text>
-            </TouchableOpacity>
-          )}
           <TouchableOpacity
             style={[styles.button, styles.buttonPrimary, !isPageValid() && styles.buttonDisabled]}
             onPress={handleNext}
@@ -655,6 +673,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 24,
     paddingBottom: 0,
+    flexGrow: 1,
   },
   welcomeContainer: {
     flex: 1,
@@ -729,6 +748,11 @@ const styles = StyleSheet.create({
   },
   pageContainer: {
     flex: 1,
+    minHeight: '100%',
+  },
+  pageContainerWithScroll: {
+    flex: 1,
+    height: '100%',
   },
   heartIconContainer: {
     alignItems: 'center',
@@ -740,7 +764,7 @@ const styles = StyleSheet.create({
   pageTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: 24,
     color: '#fff',
     textAlign: 'center',
   },
@@ -754,7 +778,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     marginTop: 20,
-    marginBottom: 12,
+    marginBottom: 16,
     color: '#fff',
   },
   textArea: {
@@ -769,7 +793,12 @@ const styles = StyleSheet.create({
     borderWidth: 0,
   },
   optionsScroll: {
-    maxHeight: 400,
+    flex: 1,
+    marginTop: 8,
+  },
+  optionsScrollContent: {
+    paddingBottom: 40,
+    flexGrow: 1,
   },
   optionButton: {
     backgroundColor: '#1a1a1a',
@@ -788,6 +817,54 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   optionTextSelected: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  platformGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 24,
+    paddingHorizontal: 4,
+  },
+  platformButton: {
+    width: '48%',
+    aspectRatio: 1,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 16,
+    marginBottom: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  platformButtonSelected: {
+    backgroundColor: '#2a2a2a',
+    borderColor: '#444',
+    borderWidth: 1.5,
+    shadowOpacity: 0.3,
+  },
+  platformIcon: {
+    fontSize: 36,
+    marginBottom: 12,
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  platformText: {
+    fontSize: 12,
+    color: '#fff',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  platformTextSelected: {
     color: '#fff',
     fontWeight: '600',
   },
