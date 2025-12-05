@@ -89,10 +89,8 @@ export default function QuestionnaireScreen() {
         return answers.bottleneck !== '';
       case 3: // Bottleneck Deep Dive
         return answers.bottleneckDeepDive.trim() !== '';
-      case 4: // Authentication
-        return answers.authentication.linkedin || 
-               answers.authentication.twitter || 
-               answers.authentication.gmail;
+      case 4: // Authentication - always valid (can skip)
+        return true;
       case 5: // Niche
         return answers.niche !== '';
       case 6: // Angle
@@ -231,46 +229,62 @@ export default function QuestionnaireScreen() {
       case 4:
         return (
           <View style={styles.pageContainer}>
+            <View style={styles.profileIconContainer}>
+              <View style={styles.profileIcon}>
+                <View style={styles.profileIconHead} />
+                <View style={styles.profileIconBody} />
+              </View>
+            </View>
             <Text style={styles.pageTitle}>Who are you?</Text>
-            <Text style={styles.subtitle}>Connect with LinkedIn, Twitter, or Gmail</Text>
+            <Text style={styles.subtitle}>Connect with one of your accounts</Text>
             
             <TouchableOpacity
-              style={[
-                styles.authButton,
-                answers.authentication.linkedin && styles.authButtonSelected
-              ]}
-              onPress={() => setAnswers({
-                ...answers,
-                authentication: { ...answers.authentication, linkedin: !answers.authentication.linkedin }
-              })}
+              style={styles.authButtonLinkedIn}
+              onPress={() => {
+                setAnswers({
+                  ...answers,
+                  authentication: { ...answers.authentication, linkedin: true }
+                });
+                handleNext();
+              }}
             >
-              <Text style={styles.authButtonText}>LinkedIn</Text>
+              <Text style={styles.authButtonLogo}>in</Text>
+              <Text style={styles.authButtonTextLinkedIn}>Continue with LinkedIn</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[
-                styles.authButton,
-                answers.authentication.twitter && styles.authButtonSelected
-              ]}
-              onPress={() => setAnswers({
-                ...answers,
-                authentication: { ...answers.authentication, twitter: !answers.authentication.twitter }
-              })}
+              style={styles.authButton}
+              onPress={() => {
+                setAnswers({
+                  ...answers,
+                  authentication: { ...answers.authentication, twitter: true }
+                });
+                handleNext();
+              }}
             >
-              <Text style={styles.authButtonText}>Twitter</Text>
+              <Text style={styles.authButtonLogo}>🐦</Text>
+              <Text style={styles.authButtonText}>Continue with Twitter</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[
-                styles.authButton,
-                answers.authentication.gmail && styles.authButtonSelected
-              ]}
-              onPress={() => setAnswers({
-                ...answers,
-                authentication: { ...answers.authentication, gmail: !answers.authentication.gmail }
-              })}
+              style={styles.authButton}
+              onPress={() => {
+                setAnswers({
+                  ...answers,
+                  authentication: { ...answers.authentication, gmail: true }
+                });
+                handleNext();
+              }}
             >
-              <Text style={styles.authButtonText}>Gmail</Text>
+              <Text style={styles.authButtonLogo}>M</Text>
+              <Text style={styles.authButtonText}>Continue with Gmail</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.skipButton}
+              onPress={handleNext}
+            >
+              <Text style={styles.skipButtonText}>Skip for now</Text>
             </TouchableOpacity>
           </View>
         );
@@ -539,17 +553,21 @@ export default function QuestionnaireScreen() {
   const renderProgressDots = () => {
     return (
       <View style={styles.progressDotsContainer}>
-        {Array.from({ length: TOTAL_PAGES }).map((_, index) => (
-          <View key={index} style={styles.progressDotContainer}>
-            <View
-              style={[
-                styles.progressDot,
-                index === currentPage && styles.progressDotActive
-              ]}
-            />
-            {index === currentPage && <View style={styles.progressDotBar} />}
-          </View>
-        ))}
+        {Array.from({ length: TOTAL_PAGES }).map((_, index) => {
+          const isCompleted = index < currentPage;
+          const isActive = index === currentPage;
+          return (
+            <View key={index} style={styles.progressDotContainer}>
+              <View
+                style={[
+                  styles.progressDot,
+                  (isCompleted || isActive) && styles.progressDotActive
+                ]}
+              />
+              {isActive && <View style={styles.progressDotBar} />}
+            </View>
+          );
+        })}
       </View>
     );
   };
@@ -567,22 +585,24 @@ export default function QuestionnaireScreen() {
         {renderPage()}
       </ScrollView>
 
-      <View style={styles.buttonsRow}>
-        {currentPage === 1 && (
-          <TouchableOpacity style={styles.previewButton}>
-            <Text style={styles.previewButtonText}>Aperçu</Text>
+      {currentPage !== 4 && (
+        <View style={styles.buttonsRow}>
+          {currentPage === 1 && (
+            <TouchableOpacity style={styles.previewButton}>
+              <Text style={styles.previewButtonText}>Aperçu</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[styles.button, styles.buttonPrimary, !isPageValid() && styles.buttonDisabled]}
+            onPress={handleNext}
+            disabled={!isPageValid()}
+          >
+            <Text style={styles.buttonTextPrimary}>
+              {currentPage === 0 ? "Let's Begin" : currentPage === TOTAL_PAGES - 1 ? "Finish" : "Continue"}
+            </Text>
           </TouchableOpacity>
-        )}
-        <TouchableOpacity
-          style={[styles.button, styles.buttonPrimary, !isPageValid() && styles.buttonDisabled]}
-          onPress={handleNext}
-          disabled={!isPageValid()}
-        >
-          <Text style={styles.buttonTextPrimary}>
-            {currentPage === 0 ? "Let's Begin" : currentPage === TOTAL_PAGES - 1 ? "Finish" : "Continue"}
-          </Text>
-        </TouchableOpacity>
-      </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -722,11 +742,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 8,
     color: '#fff',
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
     color: '#999',
     marginBottom: 32,
+    textAlign: 'center',
   },
   label: {
     fontSize: 14,
@@ -769,22 +791,85 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
   },
+  profileIconContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  profileIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  profileIconHead: {
+    width: 35,
+    height: 35,
+    borderRadius: 17.5,
+    backgroundColor: '#000',
+    marginTop: 8,
+    marginBottom: 2,
+  },
+  profileIconBody: {
+    width: 50,
+    height: 35,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+    backgroundColor: '#000',
+    marginTop: 0,
+  },
   authButton: {
     backgroundColor: '#1a1a1a',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-start',
     borderWidth: 0,
   },
-  authButtonSelected: {
-    backgroundColor: '#2a2a2a',
-    borderWidth: 1,
-    borderColor: '#fff',
+  authButtonLinkedIn: {
+    backgroundColor: '#0077B5',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    borderWidth: 0,
+  },
+  authButtonLogo: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginRight: 12,
+    width: 24,
+    textAlign: 'center',
   },
   authButtonText: {
     fontSize: 16,
     color: '#fff',
+    fontWeight: '500',
+  },
+  authButtonTextLinkedIn: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '500',
+  },
+  skipButton: {
+    backgroundColor: '#1a1a1a',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 8,
+    alignItems: 'center',
+    borderWidth: 0,
+  },
+  skipButtonText: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '500',
   },
   sliderContainer: {
     marginBottom: 32,
